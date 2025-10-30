@@ -2,14 +2,14 @@
 
 RRT_star::RRT_star() : rng_(std::random_device{}()) {
 
-  x_dist = std::uniform_real_distribution<double>(-1.5, 1.5);  // 좌우 1.5m
-  y_dist = std::uniform_real_distribution<double>(0.05, 1.5);   // 앞쪽 3m
+  x_dist = std::uniform_real_distribution<double>(-0.5, 0.5);  // ì¢Œìš° 1.5m
+  y_dist = std::uniform_real_distribution<double>(0.05, 1.5);   // ì•žìª½ 3m
 
-  // 왼쪽 편향 분포
-  //x_dist_left = std::uniform_real_distribution<double>(-1.0, -0.05);  // 왼쪽에 더 많은 샘플
+  // ì™¼ìª½ íŽ¸í–¥ ë¶„í¬
+  //x_dist_left = std::uniform_real_distribution<double>(-1.0, -0.05);  // ì™¼ìª½ì— ë” ë§Žì€ ìƒ˜í”Œ
 
-  // 오른쪽 편향 분포
-  //x_dist_right = std::uniform_real_distribution<double>(0.05, 1.0);  // 오른쪽에 더 많은 샘플
+  // ì˜¤ë¥¸ìª½ íŽ¸í–¥ ë¶„í¬
+  //x_dist_right = std::uniform_real_distribution<double>(0.05, 1.0);  // ì˜¤ë¥¸ìª½ì— ë” ë§Žì€ ìƒ˜í”Œ
 
   visualization_callback = nullptr;
   nodes.reserve(2000);
@@ -17,7 +17,7 @@ RRT_star::RRT_star() : rng_(std::random_device{}()) {
   lane_data_available = false;
   //std::cout << "RRT* grid mapper initialized" << std::endl;
 }
-//그리드 맵
+//ê·¸ë¦¬ë“œ ë§µ
 void RRT_star::updateMap(const sensor_msgs::msg::LaserScan::SharedPtr scan, double robot_x, double robot_y, double robot_theta){
   std::lock_guard<std::mutex> lock(map_mutex);
 
@@ -29,27 +29,27 @@ void RRT_star::updateMap(const sensor_msgs::msg::LaserScan::SharedPtr scan, doub
     return;
   }
 
-  // 여러 번 검증을 통한 안정적인 데이터만 사용
+  // ì—¬ëŸ¬ ë²ˆ ê²€ì¦ì„ í†µí•œ ì•ˆì •ì ì¸ ë°ì´í„°ë§Œ ì‚¬ìš©
   std::vector<bool> valid_points(scan->ranges.size(), false);
 
   for (size_t i = 1; i < scan->ranges.size()-1; i++) {
     double range = scan->ranges[i];
 
     if (range > 0.05 && range < 0.4 && !std::isinf(range) && !std::isnan(range)) {
-      // 3점 연속 검증
+      // 3ì  ì—°ì† ê²€ì¦
       float prev = scan->ranges[i-1];
       float next = scan->ranges[i+1];
 
-      // 모든 값이 유효하고 연속성이 있을 때만 사용
+      // ëª¨ë“  ê°’ì´ ìœ íš¨í•˜ê³  ì—°ì†ì„±ì´ ìžˆì„ ë•Œë§Œ ì‚¬ìš©
       if (prev > 0.05 && next > 0.05 && !std::isinf(prev) && !std::isinf(next)) {
-        // 급격한 변화가 없으면 유효한 점으로 판단
+        // ê¸‰ê²©í•œ ë³€í™”ê°€ ì—†ìœ¼ë©´ ìœ íš¨í•œ ì ìœ¼ë¡œ íŒë‹¨
         if (abs(range - prev) < 1.0 && abs(range - next) < 1.0) {
           valid_points[i] = true;
         }
       }
     }
   }
-  // 검증된 포인트만 맵에 표시
+  // ê²€ì¦ëœ í¬ì¸íŠ¸ë§Œ ë§µì— í‘œì‹œ
   for (size_t i = 0; i < scan->ranges.size(); i++) {
     if (!valid_points[i]) continue;
     double range = scan->ranges[i];
@@ -59,23 +59,23 @@ void RRT_star::updateMap(const sensor_msgs::msg::LaserScan::SharedPtr scan, doub
 
     double angle = scan->angle_min + i * scan->angle_increment + robot_theta - M_PI/2;
 
-    //월드 좌표로 변환
+    //ì›”ë“œ ì¢Œí‘œë¡œ ë³€í™˜
     double world_x = robot_x + range * cos(angle);
     double world_y = robot_y + range * sin(angle);
-    //그리드 좌표로 변환
-   // worldToGrid의 반환값을 grid_pos 변수에 저장
-    cv::Point2i grid_pos = worldToGrid(world_x, world_y);
+    //ê·¸ë¦¬ë“œ ì¢Œí‘œë¡œ ë³€í™˜
+   // worldToGridì˜ ë°˜í™˜ê°’ì„ grid_pos ë³€ìˆ˜ì— ì €ìž¥
+    cv::Point2i grid_pos = worldToGrid(world_x, -(world_y));
 
-    // grid_pos를 사용
+    // grid_posë¥¼ ì‚¬ìš©
     if (grid_pos.x >= 0 && grid_pos.x < width &&
         grid_pos.y >= 0 && grid_pos.y < height) {
-        cv::circle(gridmap, grid_pos, 5, 255, -1);
+        cv::circle(gridmap, grid_pos, 15, 255, -1);
     }
 
     if(lane_data_available) {
       for(size_t i = 0; i < left_lane_points.size() - 1; i++) {
-        cv::Point2i p1 = worldToGrid((left_lane_points[i].x), (left_lane_points[i].y));
-        cv::Point2i p2 = worldToGrid((left_lane_points[i+1].x), (left_lane_points[i+1].y));
+        cv::Point2i p1 = worldToGrid((left_lane_points[i].x*0.8), (left_lane_points[i].y)+0.5);
+        cv::Point2i p2 = worldToGrid((left_lane_points[i+1].x*0.8), (left_lane_points[i+1].y)+0.5);
 
         if(p1.x >= 0 && p1.x < width && p1.y >= 0 && p1.y < height &&
           p2.x >= 0 && p2.x < width && p2.y >= 0 && p2.y < height) {
@@ -85,8 +85,8 @@ void RRT_star::updateMap(const sensor_msgs::msg::LaserScan::SharedPtr scan, doub
       }
 
       for(size_t i = 0; i < right_lane_points.size() - 1; i++) {
-        cv::Point2i p1 = worldToGrid((right_lane_points[i].x), (right_lane_points[i].y));
-        cv::Point2i p2 = worldToGrid((right_lane_points[i+1].x), (right_lane_points[i+1].y));
+        cv::Point2i p1 = worldToGrid((right_lane_points[i].x*0.8), (right_lane_points[i].y)+0.5);
+        cv::Point2i p2 = worldToGrid((right_lane_points[i+1].x*0.8), (right_lane_points[i+1].y)+0.5);
 
         if(p1.x >= 0 && p1.x < width && p1.y >= 0 && p1.y < height &&
           p2.x >= 0 && p2.x < width && p2.y >= 0 && p2.y < height) {
@@ -103,11 +103,11 @@ void RRT_star::updateMap(const sensor_msgs::msg::LaserScan::SharedPtr scan, doub
   notifyVisualizationUpdate();
 }
 
-// 충돌검사
+// ì¶©ëŒê²€ì‚¬
 bool RRT_star::isCollisionFree(int grid_x, int grid_y) const {
   std::lock_guard<std::mutex> lock(map_mutex);
 
-  // 경계 체크
+  // ê²½ê³„ ì²´í¬
   if (grid_x < 0 || grid_x >= width || grid_y < 0 || grid_y >= height) {
     return false;
   }
@@ -116,23 +116,23 @@ bool RRT_star::isCollisionFree(int grid_x, int grid_y) const {
     return true;
   }
 
-  // 1. 라이다 장애물 체크
+  // 1. ë¼ì´ë‹¤ ìž¥ì• ë¬¼ ì²´í¬
   if(gridmap.at<uint8_t>(grid_y, grid_x) != 0) {
-    return false;  // 장애물 있음
+    return false;  // ìž¥ì• ë¬¼ ìžˆìŒ
   }
 
 
-  // 2. 차선 체크 (차선 정보가 있을 때만)
+  // 2. ì°¨ì„  ì²´í¬ (ì°¨ì„  ì •ë³´ê°€ ìžˆì„ ë•Œë§Œ)
   if(lane_data_available) {
     cv::Point2f world_pos = gridToWorld(grid_x, grid_y);
 
-    // 차선 밖이면 충돌로 간주
+    // ì°¨ì„  ë°–ì´ë©´ ì¶©ëŒë¡œ ê°„ì£¼
     if(!isWithinLane(world_pos.x, world_pos.y)) {
       return false;
     }
   }
 
-  return true;  // 충돌 없음
+  return true;  // ì¶©ëŒ ì—†ìŒ
 }
 
 cv::Mat RRT_star::getgridmap() const {
@@ -140,25 +140,25 @@ cv::Mat RRT_star::getgridmap() const {
   return gridmap.clone();
 }
 
-//그리드맵 시각화
+//ê·¸ë¦¬ë“œë§µ ì‹œê°í™”
 cv::Mat RRT_star::getVisualizationMap() const {
   std::lock_guard<std::mutex> lock(map_mutex);
 
   cv::Mat vis_map = gridmap.clone();
 
-  // 컬러 맵으로 변환
+  // ì»¬ëŸ¬ ë§µìœ¼ë¡œ ë³€í™˜
   cv::Mat color_map;
   cv::cvtColor(vis_map, color_map, cv::COLOR_GRAY2BGR);
 
-  // 로봇 위치 (맵 중앙)
+  // ë¡œë´‡ ìœ„ì¹˜ (ë§µ ì¤‘ì•™)
   int robot_x = width/2;
   int robot_y = height/2;
 
-  // 로봇을 파란색 원으로 표시
+  // ë¡œë´‡ì„ íŒŒëž€ìƒ‰ ì›ìœ¼ë¡œ í‘œì‹œ
   cv::circle(color_map, cv::Point(robot_x, robot_y), 8, cv::Scalar(255, 0, 0), -1);
 
-  // 로봇 방향을 화살표로 표시 (위쪽이 전방)
-  cv::Point arrow_end(robot_x, robot_y - 15);
+  // ë¡œë´‡ ë°©í–¥ì„ í™”ì‚´í‘œë¡œ í‘œì‹œ (ìœ„ìª½ì´ ì „ë°©)
+  cv::Point arrow_end(robot_x, robot_y + 15);
   cv::arrowedLine(color_map, cv::Point(robot_x, robot_y), arrow_end, cv::Scalar(0, 255, 0), 3, 8, 0, 0.3);
 
   /*
@@ -170,7 +170,7 @@ cv::Mat RRT_star::getVisualizationMap() const {
 
       if(p1.x >= 0 && p1.x < width && p1.y >= 0 && p1.y < height &&
          p2.x >= 0 && p2.x < width && p2.y >= 0 && p2.y < height) {
-        cv::line(color_map, cv::Point(p1.x, p1.y), cv::Point(p2.x, p2.y), cv::Scalar(0, 255, 255), 3);  // ë…¸ëž€ìƒ‰ (BGR)
+        cv::line(color_map, cv::Point(p1.x, p1.y), cv::Point(p2.x, p2.y), cv::Scalar(0, 255, 255), 3);  // Ã«â€¦Â¸Ã«Å¾â‚¬Ã¬Æ’â€° (BGR)
         cv::circle(color_map, p1, 3, cv::Scalar(0, 255, 255), -1);
       }
     }
@@ -181,7 +181,7 @@ cv::Mat RRT_star::getVisualizationMap() const {
 
       if(p1.x >= 0 && p1.x < width && p1.y >= 0 && p1.y < height &&
          p2.x >= 0 && p2.x < width && p2.y >= 0 && p2.y < height) {
-        cv::line(color_map, cv::Point(p1.x, p1.y), cv::Point(p2.x, p2.y), cv::Scalar(255, 255, 0), 3);  // í•˜ëŠ˜ìƒ‰ (BGR)
+        cv::line(color_map, cv::Point(p1.x, p1.y), cv::Point(p2.x, p2.y), cv::Scalar(255, 255, 0), 3);  // Ã­â€¢ËœÃ«Å ËœÃ¬Æ’â€° (BGR)
         cv::circle(color_map, p1, 3, cv::Scalar(255, 255, 0), -1);
       }
     }
@@ -191,17 +191,17 @@ cv::Mat RRT_star::getVisualizationMap() const {
   }*/
 
   if(!nodes.empty()) {
-    // 옵션 1: 모든 노드 표시 (회색, 아주 작게)
+    // ì˜µì…˜ 1: ëª¨ë“  ë…¸ë“œ í‘œì‹œ (íšŒìƒ‰, ì•„ì£¼ ìž‘ê²Œ)
     for(const auto& node : nodes) {
-      cv::Point2i grid_pos = worldToGrid(node.x, node.y);//-
+      cv::Point2i grid_pos = worldToGrid(-node.x, node.y);
       if(grid_pos.x >= 0 && grid_pos.x < width && grid_pos.y >= 0 && grid_pos.y < height) {
-        cv::circle(color_map, cv::Point(grid_pos.x, grid_pos.y), 2, cv::Scalar(128, 128, 128), -1); // 회색, 작게
+        cv::circle(color_map, cv::Point(grid_pos.x, grid_pos.y), 2, cv::Scalar(128, 128, 128), -1); // íšŒìƒ‰, ìž‘ê²Œ
       }
     }
 
-    // 최종 경로만 빨간색으로 강조 표시
+    // ìµœì¢… ê²½ë¡œë§Œ ë¹¨ê°„ìƒ‰ìœ¼ë¡œ ê°•ì¡° í‘œì‹œ
     if(nodes.size() > 1) {
-      // 마지막 노드부터 시작해서 부모를 따라가며 경로 표시
+      // ë§ˆì§€ë§‰ ë…¸ë“œë¶€í„° ì‹œìž‘í•´ì„œ ë¶€ëª¨ë¥¼ ë”°ë¼ê°€ë©° ê²½ë¡œ í‘œì‹œ
       int current_idx = nodes.size() - 1;
       std::vector<cv::Point2i> final_path;
 
@@ -211,23 +211,23 @@ cv::Mat RRT_star::getVisualizationMap() const {
         current_idx = nodes[current_idx].parent_idx;
       }
 
-      // 시작점도 추가
+      // ì‹œìž‘ì ë„ ì¶”ê°€
       if(current_idx != -1) {
         cv::Point2i start_pos = worldToGrid(nodes[current_idx].x, nodes[current_idx].y);
         final_path.push_back(start_pos);
       }
 
-      // 최종 경로 선과 점 그리기
+      // ìµœì¢… ê²½ë¡œ ì„ ê³¼ ì  ê·¸ë¦¬ê¸°
       for(size_t i = 1; i < final_path.size(); i++) {
         cv::Point2i prev = final_path[i-1];
         cv::Point2i curr = final_path[i];
 
         if(prev.x >= 0 && prev.x < width && prev.y >= 0 && prev.y < height &&
            curr.x >= 0 && curr.x < width && curr.y >= 0 && curr.y < height) {
-          // 경로 선 그리기 (빨간색, 굵게)
+          // ê²½ë¡œ ì„  ê·¸ë¦¬ê¸° (ë¹¨ê°„ìƒ‰, êµµê²Œ)
           cv::line(color_map, cv::Point(curr.x, curr.y), cv::Point(prev.x, prev.y),
                   cv::Scalar(0, 0, 255), 3);
-          // 웨이포인트 점 그리기 (빨간색, 크게)
+          // ì›¨ì´í¬ì¸íŠ¸ ì  ê·¸ë¦¬ê¸° (ë¹¨ê°„ìƒ‰, í¬ê²Œ)
           cv::circle(color_map, cv::Point(prev.x, prev.y), 5, cv::Scalar(0, 0, 255), -1);
         }
       }
@@ -235,7 +235,7 @@ cv::Mat RRT_star::getVisualizationMap() const {
   }
 
 
-  // 좌표계 표시 (격자선)
+  // ì¢Œí‘œê³„ í‘œì‹œ (ê²©ìžì„ )
   for(int i = 0; i < width; i += 40) {
       cv::line(color_map, cv::Point(i, 0), cv::Point(i, height), cv::Scalar(100, 100, 100), 1);
   }
@@ -249,40 +249,40 @@ cv::Mat RRT_star::getVisualizationMap() const {
 //rrt*
 std::vector<int> RRT_star::planPath(cv::Point2f start, cv::Point2f goal, int max_iterations) {
   std::cout << "\n========== RRT* PLANNING STARTED ==========" << std::endl;
-  std::cout << "🎯 Target: (" << goal.x << ", " << goal.y << ")" << std::endl;
+  std::cout << "ðŸŽ¯ Target: (" << goal.x << ", " << goal.y << ")" << std::endl;
 
-  // 그리드 맵 확인
+  // ê·¸ë¦¬ë“œ ë§µ í™•ì¸
   if(gridmap.empty()) {
-    std::cout << "❌ FATAL: Grid map is EMPTY!" << std::endl;
+    std::cout << "âŒ FATAL: Grid map is EMPTY!" << std::endl;
     return {};
   }
-  std::cout << "✓ Grid map: " << gridmap.rows << "x" << gridmap.cols << std::endl;
+  std::cout << "âœ“ Grid map: " << gridmap.rows << "x" << gridmap.cols << std::endl;
 
-  // 노드 초기화
+  // ë…¸ë“œ ì´ˆê¸°í™”
   nodes.clear();
 
-  // 좌표 변환
+  // ì¢Œí‘œ ë³€í™˜
   cv::Point2i start_grid = worldToGrid(start.x, start.y);
   cv::Point2i goal_grid = worldToGrid(goal.x, goal.y);
 
   std::cout << "Start: world(" << start.x << "," << start.y << ") grid("<< start_grid.x << "," << start_grid.y << ")" << std::endl;
   std::cout << "Goal: world(" << goal.x << "," << goal.y << ") grid("<< goal_grid.x << "," << goal_grid.y << ")" << std::endl;
 
-  // 경계 체크 (부드럽게)
+  // ê²½ê³„ ì²´í¬ (ë¶€ë“œëŸ½ê²Œ)
   if(goal_grid.x < 5) goal_grid.x = 5;
   if(goal_grid.x >= width-5) goal_grid.x = width-6;
   if(goal_grid.y < 5) goal_grid.y = 5;
   if(goal_grid.y >= height-5) goal_grid.y = height-6;
 
-  // 월드 좌표 재계산
+  // ì›”ë“œ ì¢Œí‘œ ìž¬ê³„ì‚°
   cv::Point2f adjusted_goal = gridToWorld(goal_grid.x, goal_grid.y);
   goal.x = adjusted_goal.x;
   goal.y = adjusted_goal.y;
   std::cout << "Adjusted goal: (" << goal.x << ", " << goal.y << ")" << std::endl;
 
-  // 충돌 체크
+  // ì¶©ëŒ ì²´í¬
   if(!isCollisionFree(goal_grid.x, goal_grid.y)) {
-    std::cout << "⚠️  Goal in collision, searching..." << std::endl;
+    std::cout << "âš ï¸  Goal in collision, searching..." << std::endl;
     bool found = false;
 
     for(int r = 3; r <= 20 && !found; r += 3) {
@@ -298,7 +298,7 @@ std::vector<int> RRT_star::planPath(cv::Point2f start, cv::Point2f goal, int max
               goal_grid.x = nx;
               goal_grid.y = ny;
               found = true;
-              std::cout << "✓ Safe goal: (" << goal.x << "," << goal.y << ")" << std::endl;
+              std::cout << "âœ“ Safe goal: (" << goal.x << "," << goal.y << ")" << std::endl;
             }
           }
         }
@@ -306,40 +306,40 @@ std::vector<int> RRT_star::planPath(cv::Point2f start, cv::Point2f goal, int max
     }
 
     if(!found) {
-      std::cout << "❌ No safe goal found!" << std::endl;
+      std::cout << "âŒ No safe goal found!" << std::endl;
       return {};
     }
   }
 
-  // 시작 노드 추가
+  // ì‹œìž‘ ë…¸ë“œ ì¶”ê°€
   int start_idx = addNode(start.x, start.y);
-  std::cout << "✓ Tree initialized with start node" << std::endl;
+  std::cout << "âœ“ Tree initialized with start node" << std::endl;
   std::cout << "Parameters: threshold=" << goal_threshold<< "m, step=" << step_size << "m" << std::endl;
 
-  // ✓ 차선 정보 확인
-  std::cout << "🛣️  Lane data available: " << (lane_data_available ? "YES" : "NO") << std::endl;
+  // âœ“ ì°¨ì„  ì •ë³´ í™•ì¸
+  std::cout << "ðŸ›£ï¸  Lane data available: " << (lane_data_available ? "YES" : "NO") << std::endl;
   if(lane_data_available) {
     std::cout << "   Left points: " << left_lane_points.size() << std::endl;
     std::cout << "   Right points: " << right_lane_points.size() << std::endl;
   }
 
-  // ✓ 샘플링 범위 확인
-  std::cout << "📍 Sampling ranges:" << std::endl;
+  // âœ“ ìƒ˜í”Œë§ ë²”ìœ„ í™•ì¸
+  std::cout << "ðŸ“ Sampling ranges:" << std::endl;
   std::cout << "   x: [" << x_dist.min() << ", " << x_dist.max() << "]" << std::endl;
   std::cout << "   y: [" << y_dist.min() << ", " << y_dist.max() << "]" << std::endl;
 
   std::cout << "Starting " << max_iterations << " iterations...\n" << std::endl;
 
-  // 통계
+  // í†µê³„
   int valid = 0, collisions = 0, lane_reject = 0;
   int sample_debug_count = 0;
 
-  // RRT* 메인 루프
+  // RRT* ë©”ì¸ ë£¨í”„
   for(int iter = 0; iter < max_iterations; iter++) {
-    // 샘플링
+    // ìƒ˜í”Œë§
     cv::Point2f sample;
     if((rng_() % 100) < 30) {
-        sample = goal;  // 30% 목표 지향
+        sample = goal;  // 30% ëª©í‘œ ì§€í–¥
     } else {
       sample.x = x_dist(rng_);
       sample.y = y_dist(rng_);
@@ -351,20 +351,20 @@ std::vector<int> RRT_star::planPath(cv::Point2f start, cv::Point2f goal, int max
                 << sample.x << "," << sample.y << ") -> grid("
                 << sample_grid.x << "," << sample_grid.y << ")";
 
-      // 그리드가 맵 안인지 체크
+      // ê·¸ë¦¬ë“œê°€ ë§µ ì•ˆì¸ì§€ ì²´í¬
       if(sample_grid.x < 0 || sample_grid.x >= width || sample_grid.y < 0 || sample_grid.y >= height) {
-        std::cout << " ❌ OUT OF BOUNDS!" << std::endl;
+        std::cout << " âŒ OUT OF BOUNDS!" << std::endl;
       }else {
-       std::cout << " ✓ in bounds" << std::endl;
+       std::cout << " âœ“ in bounds" << std::endl;
       }
       sample_debug_count++;
     }
 
-    // 가장 가까운 노드
+    // ê°€ìž¥ ê°€ê¹Œìš´ ë…¸ë“œ
     int nearest_idx = findNearestNode(sample.x, sample.y);
 
     if(nearest_idx == -1) {
-      std::cout << "  ❌ No nearest node!" << std::endl;
+      std::cout << "  âŒ No nearest node!" << std::endl;
       continue;
     }
     //if(nearest_idx == -1) continue;
@@ -383,7 +383,7 @@ std::vector<int> RRT_star::planPath(cv::Point2f start, cv::Point2f goal, int max
     }
 /*
     double dx = new_pt.x - nearest.x;
-    const double max_dx = 0.07;  // x축 최대 변화량 5cm
+    const double max_dx = 0.07;  // xì¶• ìµœëŒ€ ë³€í™”ëŸ‰ 5cm
     if(std::abs(dx) > max_dx) {
       dx = (dx > 0) ? max_dx : -max_dx;
       new_pt.x = nearest.x + dx;
@@ -396,36 +396,36 @@ std::vector<int> RRT_star::planPath(cv::Point2f start, cv::Point2f goal, int max
                 << new_grid.x << "," << new_grid.y << ")";
     }
 
-    // 차선 체크
+    // ì°¨ì„  ì²´í¬
     if(lane_data_available && !isWithinLane(new_pt.x, new_pt.y)) {
-      if(iter < 10) std::cout << " ❌ LANE REJECT" << std::endl;
+      if(iter < 10) std::cout << " âŒ LANE REJECT" << std::endl;
       lane_reject++;
       continue;
     }
 
-    // 충돌 체크
+    // ì¶©ëŒ ì²´í¬
     if(!isPathCollisionFree(nearest.x, nearest.y, new_pt.x, new_pt.y)) {
-      if(iter < 10) std::cout << " ❌ COLLISION" << std::endl;
+      if(iter < 10) std::cout << " âŒ COLLISION" << std::endl;
       collisions++;
       continue;
     }
 
     /*
-    // 차선 체크
+    // ì°¨ì„  ì²´í¬
     if(lane_data_available && !isWithinLane(new_pt.x, new_pt.y)) {
         lane_reject++;
         continue;
     }
 
-    // 충돌 체크
+    // ì¶©ëŒ ì²´í¬
     if(!isPathCollisionFree(nearest.x, nearest.y, new_pt.x, new_pt.y)) {
         collisions++;
         continue;
     }*/
-    if(iter < 10) std::cout << " ✅ VALID!" << std::endl;
+    if(iter < 10) std::cout << " âœ… VALID!" << std::endl;
     valid++;
 
-    // 최적 부모 선택
+    // ìµœì  ë¶€ëª¨ ì„ íƒ
     double radius = std::min(0.3, step_size * sqrt(log(nodes.size()+1)/(nodes.size()+1)));
     std::vector<int> near_nodes = findNearNodes(new_pt.x, new_pt.y, radius);
 
@@ -443,38 +443,38 @@ std::vector<int> RRT_star::planPath(cv::Point2f start, cv::Point2f goal, int max
       }
     }
 
-    // 노드 추가
+    // ë…¸ë“œ ì¶”ê°€
     int new_idx = addNode(new_pt.x, new_pt.y, best_parent, best_cost);
 
     // Rewiring
     rewireTree(new_idx, near_nodes);
 
-    // 목표 도달 체크
+    // ëª©í‘œ ë„ë‹¬ ì²´í¬
     double goal_dist = distance(new_pt.x, new_pt.y, goal.x, goal.y);
     if(goal_dist < goal_threshold) {
-      std::cout << "\n🎉 SUCCESS! Goal reached!" << std::endl;
-      std::cout << "└─ Iteration: " << (iter+1) << "/" << max_iterations << std::endl;
-      std::cout << "└─ Nodes: " << nodes.size() << std::endl;
-      std::cout << "└─ Valid: " << valid << " | Collisions: " << collisions
+      std::cout << "\nðŸŽ‰ SUCCESS! Goal reached!" << std::endl;
+      std::cout << "â””â”€ Iteration: " << (iter+1) << "/" << max_iterations << std::endl;
+      std::cout << "â””â”€ Nodes: " << nodes.size() << std::endl;
+      std::cout << "â””â”€ Valid: " << valid << " | Collisions: " << collisions
                 << " | Lane: " << lane_reject << std::endl;
 
-      // 목표 노드 추가
+      // ëª©í‘œ ë…¸ë“œ ì¶”ê°€
       double final_cost = nodes[new_idx].cost + goal_dist;
       int goal_idx = addNode(goal.x, goal.y, new_idx, final_cost);
 
-      // 경로 재구성
+      // ê²½ë¡œ ìž¬êµ¬ì„±
       std::vector<cv::Point2f> path = reconstructPath(goal_idx);
-      std::cout << "└─ Waypoints: " << path.size() << std::endl;
+      std::cout << "â””â”€ Waypoints: " << path.size() << std::endl;
 
-      // 픽셀로 변환
+      // í”½ì…€ë¡œ ë³€í™˜
       std::vector<int> pixels = worldToPixel(path);
-      std::cout << "└─ Pixel waypoints: " << pixels.size() << std::endl;
+      std::cout << "â””â”€ Pixel waypoints: " << pixels.size() << std::endl;
       std::cout << "========================================\n" << std::endl;
 
       return pixels;
     }
 
-    // 진행 상황
+    // ì§„í–‰ ìƒí™©
     if((iter+1) % 100 == 0) {
       std::cout << "  [" << (iter+1) << "] Nodes:" << nodes.size()
                 << " | Valid:" << valid << " | Coll:" << collisions
@@ -482,10 +482,10 @@ std::vector<int> RRT_star::planPath(cv::Point2f start, cv::Point2f goal, int max
     }
   }
 
-  // 실패
-  std::cout << "\n❌ FAILED after " << max_iterations << " iterations" << std::endl;
-  std::cout << "└─ Final nodes: " << nodes.size() << std::endl;
-  std::cout << "└─ Valid: " << valid << " | Collisions: " << collisions
+  // ì‹¤íŒ¨
+  std::cout << "\nâŒ FAILED after " << max_iterations << " iterations" << std::endl;
+  std::cout << "â””â”€ Final nodes: " << nodes.size() << std::endl;
+  std::cout << "â””â”€ Valid: " << valid << " | Collisions: " << collisions
             << " | Lane: " << lane_reject << std::endl;
   std::cout << "========================================\n" << std::endl;
 
@@ -494,12 +494,12 @@ std::vector<int> RRT_star::planPath(cv::Point2f start, cv::Point2f goal, int max
 
 //std::vector<cv::Point2f> RRT_star::getWaypoint_Path(const std::vector<cv::Point2f>& path, double step_size);
 
-//노드생성
+//ë…¸ë“œìƒì„±
 int RRT_star::addNode(double x, double y, int parent_idx, double cost){
   nodes.emplace_back(x, y, parent_idx, cost);
   return nodes.size()-1;
 }
-//가장 가까은 노드 찾기
+//ê°€ìž¥ ê°€ê¹Œì€ ë…¸ë“œ ì°¾ê¸°
 int RRT_star::findNearestNode(double x, double y) const{
   if(nodes.empty()) return -1;
 
@@ -515,7 +515,7 @@ int RRT_star::findNearestNode(double x, double y) const{
   }
   return nearest_idx;
 }
-//주변 노드 탐색
+//ì£¼ë³€ ë…¸ë“œ íƒìƒ‰
 std::vector<int> RRT_star::findNearNodes(double x, double y, double radius) const{
 
   std::vector<int> near_find;
@@ -527,34 +527,34 @@ std::vector<int> RRT_star::findNearNodes(double x, double y, double radius) cons
   }
   return near_find;
 }
-//충돌 검사
+//ì¶©ëŒ ê²€ì‚¬
 bool RRT_star::isPathCollisionFree(double x1, double y1, double x2, double y2) const {
   static int debug_call_count = 0;
   bool should_debug = (debug_call_count < 5);
 
   if(should_debug) {
-    std::cout << "\n    🔍 Checking path (" << x1 << "," << y1 << ") -> (" << x2 << "," << y2 << ")" << std::endl;
+    std::cout << "\n    ðŸ” Checking path (" << x1 << "," << y1 << ") -> (" << x2 << "," << y2 << ")" << std::endl;
   }
 
-  // 차선 체크
+  // ì°¨ì„  ì²´í¬
   if(lane_data_available) {
     if(!isWithinLane(x1, y1)) {
       if(should_debug) {
-          std::cout << "    ❌ Start point outside lane" << std::endl;
+          std::cout << "    âŒ Start point outside lane" << std::endl;
           debug_call_count++;
       }
       return false;
     }
     if(!isWithinLane(x2, y2)) {
       if(should_debug) {
-        std::cout << "    ❌ End point outside lane" << std::endl;
+        std::cout << "    âŒ End point outside lane" << std::endl;
         debug_call_count++;
       }
       return false;
     }
   }
 
-  // 경로 세분화
+  // ê²½ë¡œ ì„¸ë¶„í™”
   double path_length = distance(x1, y1, x2, y2);
   int steps = static_cast<int>(path_length / 0.02);
   steps = std::max(steps, 5);
@@ -568,31 +568,31 @@ bool RRT_star::isPathCollisionFree(double x1, double y1, double x2, double y2) c
     double x = x1 + ratio * (x2 - x1);
     double y = y1 + ratio * (y2 - y1);
 
-    // 차선 체크
+    // ì°¨ì„  ì²´í¬
     if(lane_data_available && !isWithinLane(x, y)) {
       if(should_debug) {
-        std::cout << "    ❌ Mid point (" << x << "," << y << ") outside lane" << std::endl;
+        std::cout << "    âŒ Mid point (" << x << "," << y << ") outside lane" << std::endl;
         debug_call_count++;
       }
       return false;
     }
 
-    // 그리드 변환
+    // ê·¸ë¦¬ë“œ ë³€í™˜
     cv::Point2i grid = worldToGrid(x, y);
 
-    // 경계 체크
+    // ê²½ê³„ ì²´í¬
     if(grid.x < 0 || grid.x >= width || grid.y < 0 || grid.y >= height) {
       if(should_debug) {
-        std::cout << "    ❌ Grid (" << grid.x << "," << grid.y << ") out of bounds!" << std::endl;
+        std::cout << "    âŒ Grid (" << grid.x << "," << grid.y << ") out of bounds!" << std::endl;
         debug_call_count++;
       }
       return false;
     }
 
-    // 충돌 체크 (중심점만)
+    // ì¶©ëŒ ì²´í¬ (ì¤‘ì‹¬ì ë§Œ)
     if(!isCollisionFree(grid.x, grid.y)) {
       if(should_debug) {
-        std::cout << "    ❌ Grid (" << grid.x << "," << grid.y << ") has obstacle" << std::endl;
+        std::cout << "    âŒ Grid (" << grid.x << "," << grid.y << ") has obstacle" << std::endl;
         debug_call_count++;
       }
       return false;
@@ -600,7 +600,7 @@ bool RRT_star::isPathCollisionFree(double x1, double y1, double x2, double y2) c
   }
 
   if(should_debug) {
-    std::cout << "    ✅ Path is FREE!" << std::endl;
+    std::cout << "    âœ… Path is FREE!" << std::endl;
     debug_call_count++;
   }
 
@@ -608,16 +608,16 @@ bool RRT_star::isPathCollisionFree(double x1, double y1, double x2, double y2) c
 }
 /*
 bool RRT_star::isWithinLane(double world_x, double world_y) const {
-  if(!lane_data_available) return true;  // 차선 정보 없으면 통과
+  if(!lane_data_available) return true;  // ì°¨ì„  ì •ë³´ ì—†ìœ¼ë©´ í†µê³¼
 
-  // 해당 y 위치에서 차선의 x 범위 찾기
-  double left_boundary = -0.3;   // 기본값
+  // í•´ë‹¹ y ìœ„ì¹˜ì—ì„œ ì°¨ì„ ì˜ x ë²”ìœ„ ì°¾ê¸°
+  double left_boundary = -0.3;   // ê¸°ë³¸ê°’
   double right_boundary = 0.3;
 
-  // 선형 보간으로 해당 y 위치의 차선 x 좌표 추정
+  // ì„ í˜• ë³´ê°„ìœ¼ë¡œ í•´ë‹¹ y ìœ„ì¹˜ì˜ ì°¨ì„  x ì¢Œí‘œ ì¶”ì •
   for(size_t i = 0; i < left_lane_points.size() - 1; i++) {
     if(world_y >= left_lane_points[i].y && world_y <= left_lane_points[i+1].y) {
-      // 선형 보간
+      // ì„ í˜• ë³´ê°„
       double ratio = (world_y - left_lane_points[i].y) /(left_lane_points[i+1].y - left_lane_points[i].y);
       left_boundary = left_lane_points[i].x + ratio * (left_lane_points[i+1].x - left_lane_points[i].x);
       break;
@@ -633,12 +633,12 @@ bool RRT_star::isWithinLane(double world_x, double world_y) const {
     }
   }
 
-  // 안전 마진 추가 (5cm)
+  // ì•ˆì „ ë§ˆì§„ ì¶”ê°€ (5cm)
   const double safety_margin = 0.05;
   left_boundary += safety_margin;
   right_boundary -= safety_margin;
 
-  // 차선 경계를 벗어났는지 확인
+  // ì°¨ì„  ê²½ê³„ë¥¼ ë²—ì–´ë‚¬ëŠ”ì§€ í™•ì¸
   return (world_x >= left_boundary && world_x <= right_boundary);
 }*/
 
@@ -667,12 +667,12 @@ bool RRT_star::isWithinLane(double world_x, double world_y) const {
         return true;
     }
 
-    const double default_lane_width = 0.35;
+    const double default_lane_width = 0.7;
     return (std::abs(world_x) < default_lane_width / 2.0);
   }
 
 
-  double left_boundary = -0.175;
+  double left_boundary = -0.2;
   bool found_left = false;
 
   for(size_t i = 0; i < left_lane_points.size() - 1; i++) {
@@ -695,7 +695,7 @@ bool RRT_star::isWithinLane(double world_x, double world_y) const {
     }
   }
 
-  double right_boundary = 0.175;
+  double right_boundary = 0.2;
   bool found_right = false;
 
   for(size_t i = 0; i < right_lane_points.size() - 1; i++) {
@@ -723,7 +723,7 @@ bool RRT_star::isWithinLane(double world_x, double world_y) const {
   }
 
 
-  const double safety_margin = 0.015;
+  const double safety_margin = 0.01;
   left_boundary += safety_margin;
   right_boundary -= safety_margin;
 
@@ -748,11 +748,11 @@ bool RRT_star::isWithinLane(double world_x, double world_y) const {
 }
 
 
-//거리 측정
+//ê±°ë¦¬ ì¸¡ì •
 double RRT_star::distance(double x1, double y1, double x2, double y2) const{
   return sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2));
 }
-//경로 재구성
+//ê²½ë¡œ ìž¬êµ¬ì„±
 std::vector<cv::Point2f> RRT_star::reconstructPath(int goal_idx) const{
   std::vector<cv::Point2f> path;
 
@@ -767,7 +767,7 @@ std::vector<cv::Point2f> RRT_star::reconstructPath(int goal_idx) const{
   return path;
 }
 
-//트리 재연결
+//íŠ¸ë¦¬ ìž¬ì—°ê²°
 void RRT_star::rewireTree(int new_idx, const std::vector<int>& near_find){
   const Node& new_node = nodes[new_idx];
 
@@ -790,7 +790,7 @@ cv::Point2i RRT_star::worldToGrid(double world_x, double world_y) const {
   int grid_y = static_cast<int>(world_y / resolution + height/2);
 
   /*
-  // ✓ 디버그 (처음 10번만)
+  // âœ“ ë””ë²„ê·¸ (ì²˜ìŒ 10ë²ˆë§Œ)
   static int debug_count = 0;
   if(debug_count < 10) {
     std::cout << "      worldToGrid: (" << world_x << "," << world_y
@@ -798,7 +798,7 @@ cv::Point2i RRT_star::worldToGrid(double world_x, double world_y) const {
     debug_count++;
   }*/
 
-  // 클램핑
+  // í´ëž¨í•‘
   grid_x = std::max(0, std::min(width-1, grid_x));
   grid_y = std::max(0, std::min(height-1, grid_y));
 
@@ -814,7 +814,7 @@ std::vector<int> RRT_star::worldToPixel(const std::vector<cv::Point2f>& world_pa
   std::vector<int> pixel_waypoints;
 
   for(const auto& point : world_path) {
-    // 월드 좌표(미터) → 픽셀 좌표 직접 변환
+    // ì›”ë“œ ì¢Œí‘œ(ë¯¸í„°) â†’ í”½ì…€ ì¢Œí‘œ ì§ì ‘ ë³€í™˜
     int pixel_x = static_cast<int>(point.x / pixel_to_meter + 320);
     pixel_waypoints.push_back(pixel_x);
 
